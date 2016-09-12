@@ -15,14 +15,14 @@ class User extends ActiveRecord
         return 'a_users';
     }
     
-    public function afterFind()
-    {
-        parent::afterFind();
-        echo "<PRE>";
-        //foreach($this as $d) {
-        echo var_dump($this->findAll());
-        //}
-        echo "</PRE>";
-        die();
-    }
+//     public function afterFind()
+//     {
+//         parent::afterFind();
+//         echo "<PRE>";
+//         //foreach($this as $d) {
+//         echo var_dump($this->findAll());
+//         //}
+//         echo "</PRE>";
+//         die();
+//     }
 }

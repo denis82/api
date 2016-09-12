@@ -6,4 +6,5 @@ return [
     'username' => 'picomsu',
     'password' => 'NyAIh9kH',
     'charset' => 'utf8',
+    'tablePrefix' => 'l_',
 ];

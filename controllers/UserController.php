@@ -2,16 +2,20 @@
 
 namespace app\controllers;
 
-use yii\rest\ActiveController;
+use app\models\User;
+use yii\rest\Controller;
 
-class UserController extends ActiveController
+class UserController extends Controller
 {
 	
-    public $modelClass = 'app\models\User';
+   // public $modelClass = 'app\models\User';
     
-    public function actionView($id)
+    public function actionDemotest()
     {
-        
-        return User::findOne($id); 
+		$customer = new User();
+		//var_dump($customer::find()->all());
+       $arr = $customer::find()->all();
+       //die;
+        return $arr; 
     }
 }
