@@ -1,0 +1,7 @@
+AuthType Basic
+AuthName "/www/liveizhevsk.picom.su/webstat"
+AuthUserFile /var/www/picomsu/data/etc/83059572.passwd
+DirectoryIndex index.html
+<Limit GET POST>
+	require valid-user
+</Limit>
