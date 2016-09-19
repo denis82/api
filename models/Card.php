@@ -11,6 +11,11 @@ class Card extends ActiveRecord
         return $this->hasOne(Location::className(), ['idLocation' => 'idLocation']);
     }
     
+	public function getCardStack()
+    {
+        return $this->hasOne(Cardstack::className(), ['idCardStack' => 'idCardStack']);
+    }
+    
 // 	public function getTag()
 //     {
 //         return $this->hasMany(Tag::className(), ['idTag' => 'idTag']);
