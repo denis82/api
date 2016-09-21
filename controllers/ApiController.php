@@ -3,6 +3,7 @@
 namespace app\controllers;
 
 use Yii;
+use yii\BaseYii;
 use yii\db\Query;
 use app\models\Tag;
 use app\models\Card;
@@ -10,15 +11,19 @@ use app\models\CardTag;
 use app\models\Tagkind;
 use yii\rest\Controller;
 use app\models\Location;
-use app\models\Cardstack;
 use yii\db\ActiveRecord;
+use app\models\Cardstack;
+use app\models\CardLocation;
+
 
 
 class ApiController extends Controller
 {
 	public $topCardId = 'topCardId';
-	public $idCardStack = 'idCardStack';
+	public $idCardStack = 'cardStackIds';
 	public $cardIds = 'cardIds';
+	public $tagIds = 'tagIds';
+	public $locationIds = 'locationIds';
 	public $datas = [];
 	const DATAS = 'datas';  
 	
@@ -29,12 +34,11 @@ class ApiController extends Controller
         $CardStack = [];
         $arrayId = [];
         $temp = [];
-        $finArray = [];
         if(is_array($idArray)) {
 			foreach($idArray as $id) {  // формируется строка из условия для  запроса
 				if(intval($id)) {
 					$arrayId[] = intval($id); // в массив попадут только int
-					$temp[] = "`idCardStack` = ".intval($id)."";
+					$temp[] = "`cardStackIds` = ".intval($id)."";
 				}
 			}
 			if (!empty($temp)) {
@@ -46,13 +50,13 @@ class ApiController extends Controller
 					$tempcart = [];
 					foreach ($resQuery as $res) {
 						foreach ($resStackQuery as $resStack) {
-							if ($resStack->idCardStack == $id) {
+							if ($resStack->cardStackIds == $id) {
 									$tempcart[$this->topCardId] =  $resStack->topCardId;
 							}
 						}
 						//$tempcart[$this->idCardStack] = $id; // идентификатор текущего стека
 						$tempcart['sort'] = 30; //  маркер сортировки
-						if ($id == $res->idCardStack) {
+						if ($id == $res->cardStackIds) {
 							$tempcart[$this->cardIds][] = $res->cardIds;
 						}
 					}
@@ -74,64 +78,42 @@ class ApiController extends Controller
 		$request = Yii::$app->request;
 		$idArray = $request->post('tags');
         $CardStack = [];
-        $arrayId = [];
-        $temp = [];
-        $finArray = [];
-        $fish = array(
-					"0"=>array('Lenin','Trockiy','Tolstoy'),
-					"1"=>array('dom','dom2','dom3'),
-					"2"=>array('forest','field'),
-					"3"=>array('park'));
-        $string = [];
-        $longString = [];
-        foreach ($fish as $f) {
-        $string = [];
-			foreach ($f as $det) {
-				$string[] =  $det;
-			}
-			$longString[] = '('.implode( ' || ', $string).')'; 
-        }
-        $implodeString = '('.implode( ' && ', $longString).')';
-        
-        /*
+        $aliasTable = '';
+        $oldIds = '';
+        $ChangeStringForQuery = '';
+        $count = 1;
         if(is_array($idArray)) {
-			foreach($idArray as $id) {  // формируется строка из условия для  запроса
-				if(intval($id)) {
-					$arrayId[] = intval($id); // в массив попадут только int
-					$temp[] = "`idCardStack` = ".intval($id)."";
+			foreach($idArray as $ids) { 
+				if ( $aliasTable == '') {
+					$aliasTable = 'alias';
 				}
-			}
-			if (!empty($temp)) {
-				$cardStackInstance = new CardStack();	
-				$resStackQuery = $cardStackInstance::find()->where(implode(' or ', $temp))->all();
-				$cardInstance = new Card();
-				$resQuery = $cardInstance::find()->where(implode(' or ', $temp))->all();
-				foreach ($arrayId as $id) {
-					$tempcart = [];
-					foreach ($resQuery as $res) {
-						foreach ($resStackQuery as $resStack) {
-							if ($resStack->idCardStack == $id) {
-									$tempcart[$this->topCardId] =  $resStack->topCardId;
-							}
-						}
-						//$tempcart[$this->idCardStack] = $id; // идентификатор текущего стека
-						$tempcart['sort'] = 30; //  маркер сортировки
-						if ($id == $res->idCardStack) {
-							$tempcart[$this->cardIds][] = $res->cardIds;
-						}
-					}
-					$tempcart['id'] = $id;
-					$CardStack[] = $tempcart;
-				} 		
-			} else {				
-				$CardStack = [];
+				if (isset($idArray[$count])) {
+				$ChangeStringForQuery .= ' INNER JOIN 
+					(SELECT cardIds FROM l_cardTag 
+						WHERE tagIds IN ('.implode(',',$idArray[$count]) .')) as `'.$aliasTable.$count.'` ON '.$aliasTable.$oldIds.'.cardIds = '.$aliasTable.$count.'.cardIds';
+				$oldIds = $count;
+				}		
+				$aliasTable = 'alias';					
+				$count++;
+			}		
+			$query ="SELECT cardStackIds FROM 
+					(SELECT alias.cardIds FROM l_cardTag as `alias`	
+					".$ChangeStringForQuery."
+					WHERE alias.tagIds IN (".implode(',',$idArray[array_keys($idArray)[0]]) .")) as `res` 
+					INNER JOIN   `l_card` as `c` ON res.cardIds = c.cardIds 
+					GROUP BY cardStackIds";
+			$resPost = Yii::$app->db->createCommand($query)->queryAll();
+			foreach ($resPost as $res) {
+				foreach($res as $r) {
+					$CardStack[] = $r;
+				}
 			}	
-        } else {
+		} else {
 			$CardStack = [];
         }
-		$this->datas[self::DATAS] = $CardStack;*/
-        var_dump($implodeString);die;
-       // return $this->datas; 
+		$this->datas[self::DATAS] = $CardStack;
+        var_dump($query);die;
+       //return $this->datas; 
     }
     /*
     *
@@ -143,65 +125,88 @@ class ApiController extends Controller
 		$request = Yii::$app->request;
 		$idArray = $request->post('ids');
 		$CardStack = [];
-        $temp = [];
-        
-         if(is_array($idArray)) {
-			foreach($idArray as $id) {  // формируется строка из условия для  запроса
-				if(intval($id)) {
-					$arrayId[] = intval($id); // в массив попадут только int
-					$temp[] = "`cardIds` = ".intval($id)."";
+		$temp = [];
+		if (null != $idArray) {
+			foreach ($idArray as $key => $id) {  // в цикле валидируются входные данные
+				if (!is_array($id)) {
+					if((int)$id) {
+						$temp[] =(int)$id;
+					}
 				}
 			}
-			$cardInstance = new Card();
-			$resQuery = $cardInstance::find()->where(implode(' or ', $temp))->all();
-			foreach ($arrayId as $id) {
+        }
+		if(!empty($temp)) {
+			$query = 'SELECT c.date, c.name,c.image,c.info, c.cardIds, cl.locationIds, ct.tagIds FROM `l_card`  as  `c`
+						INNER JOIN `l_cardLocation` as `cl` ON c.cardIds = cl.cardIds
+						INNER JOIN `l_cardTag` as `ct` ON c.cardIds = ct.cardIds 
+						WHERE c.cardIds IN ('.implode(' , ', $temp).')';
+			$resQuery = Yii::$app->db->createCommand($query)->queryAll();
+			
+			foreach($temp as $id) {  // формируется вывод из результата запроса
 				$tempcart = [];
 				foreach ($resQuery as $res) {
-					/*foreach ($resStackQuery as $resStack) {
-						if ($resStack->idCardStack == $id) {
-								$tempcart[$this->topCardId] =  $resStack->topCardId;
+					if ( $res[$this->cardIds] == $id) {
+						if(isset($tempcart[$this->tagIds])) {
+							if (!in_array($res['tagIds'],$tempcart[$this->tagIds])) {
+								$tempcart[$this->tagIds][] = 	$res['tagIds'];
+							}
+						} else {
+							$tempcart[$this->tagIds][] = 	$res['tagIds'];
 						}
-					}*/
-					//$tempcart[$this->idCardStack] = $id; // идентификатор текущего стека
-					$tempcart['sort'] = 30; //  маркер сортировки
-					if ($id == $res->idCardStack) {
-						$tempcart[$this->cardIds][] = $res->locationsIds;
+						
+						if(isset($tempcart[$this->locationIds])) {
+							if (!in_array($res['locationIds'],$tempcart[$this->locationIds])) {
+								$tempcart[$this->locationIds][] = 	$res['locationIds'];
+							}
+						} else {
+							$tempcart[$this->locationIds][] = 	$res['locationIds'];
+						}
+					}
+					if($res[$this->cardIds] == $id) {
+						$tempcart['date'] = strtotime($res['date']);
+						$tempcart['image'] = $res['image'];
+						$tempcart['name']  = $res['name'];
+						$tempcart['info'] = $res['info'];
+						$tempcart['sort'] = 30;
 					}
 				}
 				$tempcart['id'] = $id;
-				$CardStack[] = $tempcart;
-			} 
-			
+					$CardStack[] = $tempcart;
+			} 	
+        } else {
+			$CardStack = [];
         }
-        //var_dump($resQuery);
-        
-       /* $i = 0;
-		foreach ($resQuery as $res) {
-			foreach ($res as $key => $r) {
-				$CardStack[$i][$key] = $r;
-				//var_dump($key.'=>'.$r);
-				//echo '<br>';
-			}
-		$i++;
-		}*/
-		var_dump($CardStack);die;
-        //return implode(' or ', $temp); 
+		$this->datas[self::DATAS] = $CardStack;
+        return $this->datas; 
     }
     
-    public function actionLocation($id = 1)
+    public function actionLocation()
     {
-		$locationList = [];
-		$cardInstance = new Card();
-        $resQuery = $cardInstance::findOne($id);
-        $i = 0;
-		foreach ($resQuery->location as $key => $res) {
-			//foreach ($res as $key => $r) {
-				$locationList[$i][$key] = $res;
-			//}
-		$i++;
-		} 
-//          
-        return $locationList; 
+		$request = Yii::$app->request;
+		$idArray = $request->post('id');
+		$CardStack = [];
+		$temp = '';
+		//var_dump($idArray);
+		if (null != $idArray and 1 == count($idArray)) {
+			foreach ($idArray as $id) {  // в цикле валидируются входные данные
+				$temp =(int)$id;
+			}
+			$locationInstance = new Location();
+			$resQuery = $locationInstance::findOne($temp);
+			$i = 0;
+			foreach ($resQuery as $key =>$res) {
+					$CardStack[$key] = $res;
+			} 
+			$CardStack['sort'] = 30;
+        } else  {
+			$CardStack = [];
+        }
+
+		//$locationList = [];
+		
+		//var_dump($CardStack);die;   
+		$this->datas[self::DATAS][] = $CardStack;
+        return $this->datas; 
     }
     
     /*
@@ -283,5 +288,33 @@ class ApiController extends Controller
 				//$new->save();
 			}
 			
+    }
+    /*
+    
+    
+    */
+    public function checkArray($array) 
+    {
+		$res = true;
+		if(is_array($array)) {
+			foreach ($array as $firstKey => $firstStep) {
+				if (!is_numeric($firstKey)  ) {
+					$res = false;
+					}	
+				if(is_array($firstStep)) {	
+					foreach($firstStep as $secondKey => $secondStep) {
+						
+						if (!is_numeric($secondStep) || !is_numeric($secondKey) || is_array($secondStep) ) {
+						$res = false;
+						}
+					}
+				} else {
+					$res = false;
+				}
+			}
+		} else {
+			$res = false;
+		}
+		return  $res;
     }
 }

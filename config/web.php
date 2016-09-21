@@ -44,10 +44,17 @@ $config = [
         
         'urlManager' => [
             'enablePrettyUrl' => true,
-            'enableStrictParsing' => false,
+            'enableStrictParsing' => true,
             'showScriptName' => false,
             'rules' => [
-                ['class' => 'yii\rest\UrlRule', 'controller' => 'user'],
+                ['class' => 'yii\rest\UrlRule',
+                'controller' => 'api',
+                'extraPatterns' => [
+                        
+                    ],
+                ],
+                '<contriller>/<action>' => '<contriller>/<action>',
+                'api/cardstack/<search:\w+>' => 'api/cardstacksearch',
             ],
         ],
         
