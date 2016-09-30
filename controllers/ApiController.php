@@ -39,9 +39,20 @@ class ApiController extends Controller
 	public $idCardStack = 'cardStackIds';
 	public $datas = [];
 	
+        
 	const IDS = 'ids';
+	const VERSION = 1;
+	const RADIUS = 0.5;
 	const TAGS = 'tags';
 	const DATAS = 'datas';
+	const RAD = 'distance';
+	const LAT = 'latitude';
+	const LON = 'longitude';
+	const LENGTHPACKAGE = 1000;
+	const DATEINFO = 'DateInfo';
+	const TAGKIND = 'tagKindIds';
+        
+	
 	
     public function actionCardstack()
     {   
@@ -56,7 +67,6 @@ class ApiController extends Controller
 			foreach($temp as $id) {  // формируется строка из условия для  запроса
 					$arrayId[] = "`cardStackIds` = ".intval($id)."";
 			}
-			
 			$cardStackInstance = new CardStack();	
 			$resStackQuery = $cardStackInstance::find()->where(implode(' or ', $arrayId))->all();
 			$cardInstance = new Card();
@@ -86,7 +96,8 @@ class ApiController extends Controller
         //var_dump($CardStack);die;
         return $this->datas; 
     }
-        public function actionCardstacksearch()
+    
+    public function actionCardstacksearch()
     {   
 		$request = Yii::$app->request;
 		$idArray = $request->post(self::TAGS);
@@ -105,8 +116,8 @@ class ApiController extends Controller
 					(SELECT cardIds FROM l_cardTag 
 						WHERE tagIds IN ('.implode(',',$idArray[$count]) .')) as `'.$aliasTable.$count.'` ON '.$aliasTable.$oldIds.'.cardIds = '.$aliasTable.$count.'.cardIds';
 				$oldIds = $count;
-				}		
-				$aliasTable = 'alias';					
+				}
+				$aliasTable = 'alias';
 				$count++;
 			}		
 			$query ="SELECT cardStackIds FROM 
@@ -174,7 +185,7 @@ class ApiController extends Controller
 					}
 				}
 				$tempcart['id'] = $id;
-					$CardStack[] = $tempcart;
+				$CardStack[] = $tempcart;
 			} 	
         } else {
 			$CardStack = [];
@@ -226,33 +237,44 @@ class ApiController extends Controller
     {
 		$request = Yii::$app->request;
 		$idArray = $request->post(self::IDS);
+		$tagArray = $request->post(self::TAGKIND);
+		$stringForQuery = '';
 		$CardStack = [];
-		$temp = [];
-		$temp = $this->simpleArray($idArray);
-		if(!empty($temp)) {
+		$tagTemp = [];
+		$idsTemp = [];
+		$tagTemp = $this->simpleArray($tagArray);
+		$idsTemp = $this->simpleArray($idArray);
+		
+		if (empty($tagTemp) and  !empty($idsTemp)) {
+			$stringForQuery = 'WHERE tagIds IN ('.implode(' , ', $idsTemp).')';
+		}
+		if (!empty($tagTemp) and  empty($idsTemp)) {
+			$stringForQuery = 'WHERE tagKindIds IN ('.implode(' , ', $tagTemp).')';
+		}
+		if (!empty($tagTemp) and  !empty($idsTemp)) {
+			$stringForQuery = 'WHERE tagIds IN ('.implode(' , ', $idsTemp).') AND tagKindIds IN ('.implode(' , ', $tagTemp).')';
+		}
+		if (!empty($stringForQuery) ) {
 			$query = 'SELECT tagIds as `id`, date, findName, name, tagkindIds as `tagkindId`
-						FROM  `l_tag` 
-						WHERE tagIds IN ('.implode(' , ', $temp).')';
+						FROM  `l_tag`'.$stringForQuery; 
 			$resQuery = Yii::$app->db->createCommand($query)->queryAll();
-			foreach ($temp as $id) {
-			
+			foreach ($resQuery as $id) {
 				$tempcart = [];
 				foreach ($resQuery as $res) {
-					if ($id == $res['id']) {
+					if ($id['id'] == $res['id']) {
 						$tempcart['id'] = $res['id'];
 						$tempcart[$this->date] = strtotime($res[$this->date]);
 						$tempcart['tagkindId'] = $res['tagkindId'];
 						$tempcart[$this->name] = $res[$this->name]; 
 						$tempcart[$this->findName] = $res[$this->findName];
-						$tempcart['sort'] = $this->sort;	
 					}	
 				}
-				$CardStack[] = $tempcart;
+				$CardStack[] = $tempcart; 
 			}
-		}	else {
+		} else {
 			$CardStack = [];
-        }	
-		//var_dump($resQuery);die;   
+		}
+		//var_dump($query);die;   
 		$this->datas[self::DATAS] = $CardStack;
         return $this->datas; 
     }
@@ -299,47 +321,188 @@ class ApiController extends Controller
 		$this->datas[self::DATAS] = $CardStack;
         return $this->datas; 
     }
+    
+    public function actionLocationsearch()
+    {  
+        $request = Yii::$app->request;
+        $latitude = $request->post(self::LAT);
+        $longitude = $request->post(self::LON);
+        $radius = $request->post(self::RAD);
+        $CardStack = [];
+        false == (int)$radius ? $radius = self::RADIUS : $radius = ((int)$radius)/1000;
+        if($radius and floatval($longitude) and floatval($latitude)) {
+					
+			$query ='SELECT locationIds, ( 6371 * acos( cos( radians('.$latitude.') ) * cos( radians( latitude ) ) * cos( radians( longitude ) - radians('.$longitude.') ) + sin( radians('.$latitude.') ) * sin( radians( latitude ) ) ) ) AS distance FROM l_location  HAVING distance < '.$radius.' ORDER BY distance  ';
+			$resPost = Yii::$app->db->createCommand($query)->queryAll();
+			foreach ($resPost as $res) {
+					$CardStack[] = $res['locationIds'];
+			}	
+		} else {
+			$CardStack = [];
+        }
+		$this->datas[self::DATAS] = $CardStack;
+        //var_dump($query);die;
+        return $this->datas; 
+    }
+    
+    
+    public function actionTagupdatetime()
+    {  
+        $CardStack = [];
+		$query ='SELECT tagIds AS `id`,date FROM `l_tag` ORDER BY date DESC LIMIT 1';
+		$resPost = Yii::$app->db->createCommand($query)->queryAll();
+		if ($resPost) {
+			$tempcart = [];
+			foreach ($resPost as $res) {
+					$tempcart['id'] = $res['id'];
+					$tempcart['date'] = strtotime($res['date']);
+					$tempcart['sort'] = 30;
+			}
+			$CardStack[] = $tempcart;
+		} else {
+			$CardStack = [];
+        }
+		$this->datas[self::DATEINFO] = $CardStack;
+        return $this->datas; 
+    }
+    
+    public function actionTagkindupdatetime()
+    {  
+        $CardStack = [];
+		$query ='SELECT tagKindIds AS `id`,date FROM `l_tagKind` ORDER BY date DESC LIMIT 1';
+		$resPost = Yii::$app->db->createCommand($query)->queryAll();
+		if ($resPost) {
+			$tempcart = [];
+			foreach ($resPost as $res) {
+					$tempcart['id'] = $res['id'];
+					$tempcart['date'] = strtotime($res['date']);
+					$tempcart['sort'] = 30;
+			}
+			$CardStack[] = $tempcart;
+		} else {
+			$CardStack = [];
+        }
+		$this->datas[self::DATEINFO] = $CardStack;
+        return $this->datas; 
+    }
+
+    public function actionLastversion()
+    {  
+        $request = Yii::$app->request;
+        $os = $request->post('os');
+        $version = $request->post('version');
+        $CardStack = [];
+        $query ='SELECT active,os FROM `l_version`';
+		$resPost = Yii::$app->db->createCommand($query)->queryAll();
+        
+        if ($resPost) {
+            $tempcart = [];
+            foreach ($resPost as $res) {
+                if ($os == $res['os']) { 
+                    ($version == $res['active']) ? $tempcart['needUpdate'] = false: $tempcart['needUpdate'] = true;
+                    $tempcart['version'] = $res['active'];
+                    $tempcart['sort'] = 30;
+                }
+            }
+            $CardStack[] = $tempcart;
+        } else {
+            $CardStack = [];
+        }
+	$this->datas[self::DATEINFO] = $CardStack;
+        return $this->datas; 
+    }
+    
+    
+    public function actionTagpackage()
+    {  
+        $request = Yii::$app->request;
+        $packageIds = (int)$request->post('pack');
+		if ($packageIds >= 0 ) {
+			$query = 'SELECT tagIds as `id`, date, findName, name, tagkindIds as `tagkindId` FROM `l_tag`  ORDER BY  `tagIds` ASC LIMIT 1000  OFFSET '.(int)$packageIds.'000'; 
+			$resQuery = Yii::$app->db->createCommand($query)->queryAll();
+			if ($resQuery) {
+				foreach ($resQuery as $id) {
+					$tempcart = [];
+					foreach ($resQuery as $res) {
+						if ($id['id'] == $res['id']) {
+							$tempcart['id'] = $res['id'];
+							$tempcart[$this->date] = strtotime($res[$this->date]);
+							$tempcart['tagkindId'] = $res['tagkindId'];
+							$tempcart[$this->name] = $res[$this->name]; 
+							$tempcart[$this->findName] = $res[$this->findName];
+							$tempcart['sort'] = $this->sort;	
+						}	
+					}
+					$CardStack[] = $tempcart; 
+				}
+			}
+        } else {
+            $CardStack = [];
+        } 
+        //var_dump($CardStack);
+		$this->datas[self::DATAS] = $CardStack;
+		$this->datas['count'] = $this->tagpackagecount();
+        return $this->datas; 
+    }
+    
+        
     public function actionAdd()
     {
 		$arr = [];
 		$newarr = [];
-		for ($k=1;$k < 100000; $k++) {
-		$arr[] = $k;
+		for ($k=700000;$k < 900000; $k++) {
+		$rand = rand ( 211111 , 299999 );
+		$rand2 = rand ( 611111 , 699999 );
+		$r = '('.$k.' , 56.'.$rand.' , 53.'.$rand2.')';
+		$query ="INSERT INTO `l_location`(`locationIds`, `latitude`, `longitude`) VALUES".$r;
+		//echo $query;
+			//$resPost = Yii::$app->db->createCommand($query)->execute();
+		//$arr[] = $k;
 		}
-		shuffle($arr);
+		//shuffle($arr);
 		//$tag = new Card();
-		$tag = new Card();
-		$resQuery = $tag::find()->all();
-		foreach ($resQuery as  $res) {
- 			//foreach ($res as  $key =>$r) {
- 			//$tag = new CardStack();
- 			//$tag->idCardStack = $res;
- 			//$tag->save();
- 			$newarr[] = $res['cardIds'];
- 				///echo '<pre>';var_dump($res['cardIds']);echo '</pre>';
- 			//}
-		//for ($k=1;$k < 100; $k++) {
-		//	for ($i = 100+$k; $i <100000; $i = $i+100) {
+		//$tag = new Card();
+		//$resQuery = $tag::find()->all();
+		//foreach ($resQuery as  $res) {
+ 
+ 		//	$newarr[] = $res['cardIds'];
+
 			
-		//	$tag->idTag = $i;
-		//	$tag->idTagkind = $k;
-			//$tag->save();
-			
-		}
+		//}
 		//var_dump($newarr);die;
-		$tag = new CardTag();
-		$resQuer = $tag::find()->all();
+		//$tag = new CardTag();
+		//$resQuer = $tag::find()->all();
 		
-			foreach ($resQuer as $res) {
-				$new = $tag::findOne($res['idCardTag']);
-				$new->cardIds = array_pop ( $newarr );
-				$new->save();
+		//	foreach ($resQuer as $res) {
+		//		$new = $tag::findOne($res['idCardTag']);
+		//		$new->cardIds = array_pop ( $newarr );
+				//$new->save();
 				
 				//$new->idCardStack = array_pop ( $newarr );
 				//$new->save();
-			}
+		//	}
 			
     }
+    
+    public function tagpackagecount()
+    {  
+        $query ='SELECT count(tagIds) as `count` FROM `l_tag`';
+		$resPost = Yii::$app->db->createCommand($query)->queryAll();
+        $CardStack = '';
+        if ($resPost) {
+            foreach ($resPost as $res) {
+				if($res['count'] >= self::LENGTHPACKAGE) {
+					$CardStack = (int)round($res['count']/self::LENGTHPACKAGE);
+				} else {
+					$CardStack = false;
+				}
+            }
+        } else {
+            $CardStack = false;
+        }
+        return $CardStack; 
+    }
+    
     /*
     
     
@@ -368,6 +531,7 @@ class ApiController extends Controller
 		}
 		return  $res;
     }
+    
     public function simpleArray($array)
     {
 		$temp = [];
@@ -384,4 +548,6 @@ class ApiController extends Controller
         }
 		return $temp;
     }
+    
+
 }

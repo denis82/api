@@ -54,7 +54,13 @@ $config = [
                     ],
                 ],
                 '<contriller>/<action>' => '<contriller>/<action>',
-                'api/cardstack/<search:\w+>' => 'api/cardstacksearch',
+                'api/tag/package_count' =>'api/tagpackagecount',
+                'api/tag/package' =>'api/tagpackage',
+                'api/tag/updatetime' => 'api/tagupdatetime',
+                'api/tagkind/updatetime' => 'api/tagkindupdatetime',
+                'api/cardstack/search' => 'api/cardstacksearch',
+                'api/location/search' => 'api/locationsearch',
+                
             ],
         ],
         
